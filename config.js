@@ -1,52 +1,45 @@
-const config = {
+export const config = {
   bot: {
-    name: "TGQueenBot-V2",
-    version: "2.0.0",
+    name: "TGQueenBot-Beta",
     author: "Priyanshi Kaur",
-    token: "8426423152:AAHJL3FyfBV2dsmfjQhiEn-Op8yNJcNvKCY",
+    version: "2.0.0",
     prefix: "/",
+    token: "8426423152:AAHJL3FyfBV2dsmfjQhiEn-Op8yNJcNvKCY"
+  },
+  roles: {
+    owners: [8789877223],
+    admins: [8789877223]
+  },
+  database: {
+    type: "mongodb",
+    uri: "mongodb+srv://ajay123455:ajay123455@queen.d9zk5go.mongodb.net/?appName=Queen",
+    dbName: "Queen"
+  },
+  server: {
     port: 3000,
     keepAlive: true,
-    keepAliveUrl: ""
-  },
-  owners: ["8789877223"],
-  admins: ["8789877223"],
-  database: {
-    mongoUri: "mongodb+srv://ajay123455:ajay123455@queen.d9zk5go.mongodb.net/?appName=Queen",
-    dbName: "economyBot",
-    useLocalFallback: true
-  },
-  features: {
-    levelSystem: true,
-    welcomeMessage: true,
-    goodbyeMessage: true,
-    weeklyReport: true,
-    economy: true,
-    aiChat: true,
-    moderation: true,
-    games: true,
-    mediaDownloaders: true,
-    autoUpdater: true
+    pingInterval: 840000,
+    externalUrl: ""
   },
   updater: {
-    updateJsonUrl: "https://raw.githubusercontent.com/ItzPriyanshi/TGQueenBot-V2/main/update.json",
-    repoGitUrl: "https://github.com/ItzPriyanshi/TGQueenBot-V2.git",
-    branch: "main",
-    checkOnStartup: true,
-    checkIntervalMinutes: 30,
-    notifyOwnersOnUpdate: true
+    enabled: true,
+    updateUrl: "https://raw.githubusercontent.com/ItzPriyanshi/TGQueenBot-V2/main/update.json",
+    checkInterval: 3600000,
+    autoNotifyAdmins: true
   },
-  economy: {
-    currencySymbol: "🪙",
-    currencyName: "Coins",
-    initialBalance: 500,
-    dailyReward: 250,
-    workMinReward: 50,
-    workMaxReward: 300
-  },
-  apiKeys: {
-    gemini: "",
-    weather: ""
+  features: {
+    rankUpNotification: true,
+    welcomeMessage: true,
+    goodbyeMessage: true,
+    weeklyReport: {
+      enabled: true,
+      cronSchedule: "0 0 * * 0"
+    },
+    cooldowns: true,
+    whitelist: {
+      enabled: false,
+      allowedUsers: []
+    }
   }
 };
 
