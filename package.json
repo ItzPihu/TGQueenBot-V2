@@ -1,27 +1,23 @@
 {
-  "name": "tgqueenbot-v2",
+  "name": "TGQueenBot-V2",
   "version": "2.0.0",
-  "description": "TGQueenBot-V2 - Advanced Telegram Bot with Bun runtime support, ESM architecture, modular command/event handlers, and auto-updater.",
+  "description": "TGQueenBot-V2 - Advanced Telegram Bot powered by grammY with Bun and TypeScript support",
+  "main": "bot.ts",
   "type": "module",
-  "main": "bot.js",
   "scripts": {
-    "start": "bun run bot.js",
-    "start:node": "node bot.js",
-    "dev": "bun --watch bot.js",
-    "dev:node": "node --watch bot.js"
+    "start": "bun run bot.ts || tsx bot.ts",
+    "start:bun": "bun run bot.ts",
+    "start:node": "tsx bot.ts",
+    "build": "tsc",
+    "test": "echo \"No test specified\" && exit 0"
   },
   "keywords": [
     "telegram-bot",
-    "bun",
-    "nodejs",
-    "esm",
     "grammy",
-    "chatbot",
-    "moderation",
-    "mongodb",
-    "automation",
-    "utilities",
-    "tgqueenbot"
+    "bun",
+    "typescript",
+    "goatbot-v2",
+    "tgqueenbot-v2"
   ],
   "author": "Priyanshi Kaur",
   "license": "MIT",
@@ -30,13 +26,22 @@
     "@google/genai": "latest",
     "@grammyjs/hydrate": "latest",
     "@grammyjs/runner": "latest",
+    "@grammyjs/transformer-throttler": "latest",
     "axios": "latest",
+    "canvas": "latest",
     "chalk": "latest",
     "fluent-ffmpeg": "latest",
     "grammy": "latest",
+    "miniget": "latest",
     "moment": "latest",
     "mongodb": "latest",
     "node-schedule": "latest",
     "yt-search": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/node-schedule": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
   }
 }
