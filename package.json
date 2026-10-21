@@ -1,0 +1,42 @@
+{
+  "name": "tgqueenbot-v2",
+  "version": "2.0.0",
+  "description": "TGQueenBot-V2 - Advanced Telegram Bot with Bun runtime support, ESM architecture, modular command/event handlers, and auto-updater.",
+  "type": "module",
+  "main": "bot.js",
+  "scripts": {
+    "start": "bun run bot.js",
+    "start:node": "node bot.js",
+    "dev": "bun --watch bot.js",
+    "dev:node": "node --watch bot.js"
+  },
+  "keywords": [
+    "telegram-bot",
+    "bun",
+    "nodejs",
+    "esm",
+    "grammy",
+    "chatbot",
+    "moderation",
+    "mongodb",
+    "automation",
+    "utilities",
+    "tgqueenbot"
+  ],
+  "author": "Priyanshi Kaur",
+  "license": "MIT",
+  "dependencies": {
+    "@google-cloud/translate": "latest",
+    "@google/genai": "latest",
+    "@grammyjs/hydrate": "latest",
+    "@grammyjs/runner": "latest",
+    "axios": "latest",
+    "chalk": "latest",
+    "fluent-ffmpeg": "latest",
+    "grammy": "latest",
+    "moment": "latest",
+    "mongodb": "latest",
+    "node-schedule": "latest",
+    "yt-search": "latest"
+  }
+}
