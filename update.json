@@ -1,16 +1,17 @@
 {
-  "name": "TGQueenBot-V2",
+  "projectName": "TGQueenBot-V2",
   "version": "2.0.0",
-  "releaseDate": "2026-10-21",
   "author": "Priyanshi Kaur",
-  "critical": false,
+  "releaseDate": "2026-10-21",
   "whatsNew": [
-    "Native Bun.js runtime support with instant startup",
-    "Modern ESM architecture powered by grammY for the latest Telegram Bot API",
-    "Centralized config.js configuration replacing .env",
-    "Inbuilt repository updater checking update.json with automated /update command",
-    "High-concurrency runner and modular command/event system",
-    "Clean comment-free code standards across all modules"
+    "Added full support for Bun.js runtime and native TypeScript execution",
+    "Upgraded framework to latest grammY Bot API architecture",
+    "Implemented GoatBot V2 modular handlers: onStart, onChat, onReply, and onReaction",
+    "Centralized all environment and feature controls into config.js",
+    "Added remote update verification and one-click in-bot updater command",
+    "Role-based permission enforcement (0: Public, 1: Group Admin, 2: Bot Owner)"
   ],
-  "downloadUrl": "https://github.com/ItzPriyanshi/TGQueenBot-V2/archive/refs/heads/main.zip"
+  "repository": "https://github.com/ItzPriyanshi/TGQueenBot-V2",
+  "minBunVersion": "1.0.0",
+  "minNodeVersion": "18.0.0"
 }
