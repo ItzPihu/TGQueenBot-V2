@@ -1,135 +1,84 @@
 import axios from "axios";
-import { exec } from "child_process";
-import { promisify } from "util";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { exec } from "child_process";
+import { promisify } from "util";
 import config from "./config.js";
 
 const execAsync = promisify(exec);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-function getLocalVersion() {
-  const versionFilePath = path.join(__dirname, "version.txt");
-  if (fs.existsSync(versionFilePath)) {
-    const raw = fs.readFileSync(versionFilePath, "utf8").trim();
-    if (raw) return raw;
-  }
-  return config.bot?.version || "2.0.0";
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  localVersion: string;
+  remoteVersion: string;
+  whatsNew: string[];
+  releaseDate?: string;
 }
 
-function parseSemver(v) {
-  const parts = String(v).replace(/^v/, "").split(".").map(Number);
-  return {
-    major: parts[0] || 0,
-    minor: parts[1] || 0,
-    patch: parts[2] || 0
-  };
-}
-
-function isNewerVersion(remote, local) {
-  const r = parseSemver(remote);
-  const l = parseSemver(local);
-  if (r.major > l.major) return true;
-  if (r.major < l.major) return false;
-  if (r.minor > l.minor) return true;
-  if (r.minor < l.minor) return false;
-  return r.patch > l.patch;
-}
-
-async function fetchRemoteUpdate() {
-  const url = config.updater?.updateJsonUrl;
-  if (!url) return null;
-  const response = await axios.get(url, { timeout: 8000 });
-  return response.data;
-}
-
-async function checkForUpdates() {
+export function getLocalVersionData(): { version: string; whatsNew: string[] } {
   try {
-    const currentVersion = getLocalVersion();
-    const remoteData = await fetchRemoteUpdate();
-    if (!remoteData || !remoteData.version) {
-      return { hasUpdate: false, currentVersion };
+    const filePath = path.resolve(process.cwd(), "update.json");
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      return { version: data.version || config.bot.version, whatsNew: data.whatsNew || [] };
     }
+  } catch {}
+  return { version: config.bot.version, whatsNew: [] };
+}
 
-    const hasUpdate = isNewerVersion(remoteData.version, currentVersion);
+export async function checkRemoteUpdate(): Promise<UpdateInfo> {
+  const local = getLocalVersionData();
+  try {
+    const res = await axios.get(config.updater.updateUrl, { timeout: 10000 });
+    const remote = res.data;
+    const hasUpdate = remote.version && remote.version !== local.version;
     return {
-      hasUpdate,
-      currentVersion,
-      latestVersion: remoteData.version,
-      releaseDate: remoteData.releaseDate || "Unknown",
-      whatsNew: Array.isArray(remoteData.whatsNew) ? remoteData.whatsNew : [String(remoteData.whatsNew || "General improvements")],
-      critical: Boolean(remoteData.critical)
+      hasUpdate: Boolean(hasUpdate),
+      localVersion: local.version,
+      remoteVersion: remote.version || local.version,
+      whatsNew: Array.isArray(remote.whatsNew) ? remote.whatsNew : [],
+      releaseDate: remote.releaseDate
     };
-  } catch (error) {
-    return { hasUpdate: false, error: error.message };
+  } catch (err: any) {
+    return {
+      hasUpdate: false,
+      localVersion: local.version,
+      remoteVersion: local.version,
+      whatsNew: []
+    };
   }
 }
 
-async function notifyOwnersOfUpdate(bot) {
-  if (!config.updater?.notifyOwnersOnUpdate) return;
-  const updateStatus = await checkForUpdates();
-  if (!updateStatus.hasUpdate) return;
+export async function notifyAdmins(bot: any, info: UpdateInfo): Promise<void> {
+  if (!info.hasUpdate || !config.updater.autoNotifyAdmins) return;
+  const list = info.whatsNew.map((item, idx) => `${idx + 1}. ${item}`).join("\n");
+  const text = `🚨 *New Update Available for ${config.bot.name}!*\n\n` +
+    `📦 *Current Version:* \`${info.localVersion}\`\n` +
+    `✨ *Latest Version:* \`${info.remoteVersion}\`\n\n` +
+    `📝 *What's New:*\n${list || "General performance improvements and bug fixes."}\n\n` +
+    `💡 Send \`/update apply\` to update automatically.`;
 
-  const changelog = updateStatus.whatsNew.map(item => `• ${item}`).join("\n");
-  const message = `🔔 *New Update Available for ${config.bot.name}!*\n\n` +
-    `📦 *Current Version:* \`${updateStatus.currentVersion}\`\n` +
-    `🚀 *Latest Version:* \`${updateStatus.latestVersion}\`\n` +
-    `📅 *Release Date:* \`${updateStatus.releaseDate}\`\n\n` +
-    `✨ *What's New:*\n${changelog}\n\n` +
-    `👉 Use the \`/update\` command to apply changes automatically!`;
-
-  for (const ownerId of config.owners) {
+  for (const adminId of config.roles.admins) {
     try {
-      await bot.api.sendMessage(ownerId, message, { parse_mode: "Markdown" });
-    } catch (err) {
-      console.error(`Failed to notify owner ${ownerId}:`, err.message);
-    }
+      await bot.api.sendMessage(adminId, text, { parse_mode: "Markdown" });
+    } catch {}
   }
 }
 
-async function executeSelfUpdate() {
-  const results = [];
+export async function executeAutoUpdate(): Promise<{ success: boolean; message: string }> {
   try {
-    const gitPull = await execAsync("git pull origin main || git pull");
-    results.push(gitPull.stdout || gitPull.stderr);
-
-    const isBun = typeof process.versions.bun !== "undefined";
+    const isBun = typeof (globalThis as any).Bun !== "undefined";
     const installCmd = isBun ? "bun install" : "npm install";
-    const install = await execAsync(installCmd);
-    results.push(install.stdout || install.stderr);
-
-    const updateCheck = await checkForUpdates();
-    if (updateCheck.latestVersion) {
-      const versionFilePath = path.join(__dirname, "version.txt");
-      fs.writeFileSync(versionFilePath, updateCheck.latestVersion, "utf8");
-    }
-
+    const { stdout: pullOut } = await execAsync("git pull origin main || git pull");
+    const { stdout: installOut } = await execAsync(installCmd);
     return {
       success: true,
-      log: results.join("\n").trim()
+      message: `Update applied successfully.\nGit: ${pullOut.trim()}\nDependencies: ${installOut.trim()}`
     };
-  } catch (error) {
+  } catch (err: any) {
     return {
       success: false,
-      error: error.message,
-      log: results.join("\n").trim()
+      message: err.message || "Failed to execute auto-update."
     };
   }
 }
-
-export {
-  getLocalVersion,
-  isNewerVersion,
-  checkForUpdates,
-  notifyOwnersOfUpdate,
-  executeSelfUpdate
-};
-export default {
-  getLocalVersion,
-  isNewerVersion,
-  checkForUpdates,
-  notifyOwnersOfUpdate,
-  executeSelfUpdate
-};
