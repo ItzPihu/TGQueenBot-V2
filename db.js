@@ -1,18 +1,16 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-import { MongoClient } from "mongodb";
+import { MongoClient, Db } from "mongodb";
 import config from "./config.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const LOCAL_DB_PATH = path.join(__dirname, "local_database.json");
+const LOCAL_DB_PATH = path.resolve(process.cwd(), "local_database.json");
 
-let localDB = {};
+let localDB: Record<string, any[]> = {};
 let localMode = false;
-let mongoClient = null;
+let mongoClient: MongoClient | null = null;
+let activeDatabase: any = null;
 
-function loadLocalDatabase() {
+function loadLocalDatabase(): void {
   try {
     if (fs.existsSync(LOCAL_DB_PATH)) {
       localDB = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8"));
@@ -20,44 +18,45 @@ function loadLocalDatabase() {
       localDB = {};
       saveLocalDatabase();
     }
-  } catch (error) {
-    console.error("Error loading local database:", error);
+  } catch {
     localDB = {};
   }
 }
 
-function saveLocalDatabase() {
-  fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(localDB, null, 2), "utf8");
+function saveLocalDatabase(): void {
+  try {
+    fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(localDB, null, 2), "utf8");
+  } catch {}
 }
 
-function matches(document, query) {
+function matches(document: any, query: Record<string, any>): boolean {
   return Object.entries(query).every(([key, value]) => document[key] === value);
 }
 
-function applyUpdate(document, update) {
+function applyUpdate(document: any, update: any): any {
   if (update.$set) {
     return { ...document, ...update.$set };
   }
   if (update.$inc) {
-    const updated = { ...document };
-    for (const [key, incVal] of Object.entries(update.$inc)) {
-      updated[key] = (Number(updated[key]) || 0) + Number(incVal);
+    const next = { ...document };
+    for (const [key, val] of Object.entries(update.$inc)) {
+      next[key] = (Number(next[key]) || 0) + Number(val);
     }
-    return updated;
+    return next;
   }
   return { ...document, ...update };
 }
 
-function createLocalCollection(name) {
+function createLocalCollection(name: string) {
   if (!Array.isArray(localDB[name])) {
     localDB[name] = [];
   }
 
   return {
-    find(query = {}) {
+    find(query: Record<string, any> = {}) {
       let results = localDB[name].filter(item => matches(item, query));
       return {
-        sort(sortQuery = {}) {
+        sort(sortQuery: Record<string, number> = {}) {
           results = [...results].sort((a, b) => {
             for (const [key, direction] of Object.entries(sortQuery)) {
               if (a[key] === b[key]) continue;
@@ -67,8 +66,8 @@ function createLocalCollection(name) {
           });
           return this;
         },
-        limit(limitCount) {
-          results = results.slice(0, limitCount);
+        limit(limit: number) {
+          results = results.slice(0, limit);
           return this;
         },
         async toArray() {
@@ -77,15 +76,15 @@ function createLocalCollection(name) {
       };
     },
 
-    async findOne(query = {}) {
+    async findOne(query: Record<string, any> = {}) {
       return localDB[name].find(item => matches(item, query)) || null;
     },
 
-    async countDocuments(query = {}) {
+    async countDocuments(query: Record<string, any> = {}) {
       return localDB[name].filter(item => matches(item, query)).length;
     },
 
-    async insertOne(document) {
+    async insertOne(document: any) {
       localDB[name].push(document);
       saveLocalDatabase();
       return {
@@ -94,16 +93,16 @@ function createLocalCollection(name) {
       };
     },
 
-    async insertMany(documents) {
+    async insertMany(documents: any[]) {
       localDB[name].push(...documents);
       saveLocalDatabase();
       return {
         acknowledged: true,
-        insertedIds: documents.map(doc => doc._id || doc.id)
+        insertedIds: documents.map(d => d._id || d.id)
       };
     },
 
-    async updateOne(query, update, options = {}) {
+    async updateOne(query: Record<string, any>, update: any, options: { upsert?: boolean } = {}) {
       const index = localDB[name].findIndex(item => matches(item, query));
       if (index === -1) {
         if (options.upsert) {
@@ -119,62 +118,37 @@ function createLocalCollection(name) {
       return { acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
     },
 
-    async updateMany(query, update) {
+    async updateMany(query: Record<string, any>, update: any) {
       let modifiedCount = 0;
       localDB[name] = localDB[name].map(item => {
         if (!matches(item, query)) return item;
         modifiedCount++;
         return applyUpdate(item, update);
       });
-      if (modifiedCount > 0) {
-        saveLocalDatabase();
-      }
+      if (modifiedCount > 0) saveLocalDatabase();
       return { acknowledged: true, matchedCount: modifiedCount, modifiedCount };
     },
 
-    async findOneAndUpdate(query, update, options = {}) {
+    async deleteOne(query: Record<string, any>) {
       const index = localDB[name].findIndex(item => matches(item, query));
-      if (index === -1) {
-        if (!options.upsert) {
-          return { value: null };
-        }
-        const newDoc = applyUpdate({ ...query }, update);
-        localDB[name].push(newDoc);
-        saveLocalDatabase();
-        return { value: options.returnDocument === "after" ? newDoc : null };
-      }
-      const oldDoc = { ...localDB[name][index] };
-      localDB[name][index] = applyUpdate(localDB[name][index], update);
-      saveLocalDatabase();
-      return {
-        value: options.returnDocument === "after" ? localDB[name][index] : oldDoc
-      };
-    },
-
-    async deleteOne(query) {
-      const index = localDB[name].findIndex(item => matches(item, query));
-      if (index === -1) {
-        return { acknowledged: true, deletedCount: 0 };
-      }
+      if (index === -1) return { acknowledged: true, deletedCount: 0 };
       localDB[name].splice(index, 1);
       saveLocalDatabase();
       return { acknowledged: true, deletedCount: 1 };
     },
 
-    async deleteMany(query) {
-      const initialCount = localDB[name].length;
+    async deleteMany(query: Record<string, any>) {
+      const oldLength = localDB[name].length;
       localDB[name] = localDB[name].filter(item => !matches(item, query));
-      const deletedCount = initialCount - localDB[name].length;
-      if (deletedCount > 0) {
-        saveLocalDatabase();
-      }
+      const deletedCount = oldLength - localDB[name].length;
+      if (deletedCount > 0) saveLocalDatabase();
       return { acknowledged: true, deletedCount };
     }
   };
 }
 
 const localDatabase = {
-  collection(name) {
+  collection(name: string) {
     return createLocalCollection(name);
   },
   async close() {
@@ -182,37 +156,34 @@ const localDatabase = {
   }
 };
 
-async function connectToDatabase() {
-  const uri = config.database?.mongoUri;
-
+export async function connectToDatabase(): Promise<any> {
+  const uri = config.database?.uri;
   if (!uri || !uri.trim()) {
     localMode = true;
     loadLocalDatabase();
-    console.log("No MongoDB URI configured. Using local JSON database.");
+    activeDatabase = localDatabase;
     return localDatabase;
   }
 
   try {
-    mongoClient = new MongoClient(uri, {
-      connectTimeoutMS: 5000,
-      serverSelectionTimeoutMS: 5000
-    });
+    mongoClient = new MongoClient(uri);
     await mongoClient.connect();
     localMode = false;
-    console.log("Connected to MongoDB.");
-    return mongoClient.db(config.database?.dbName || "economyBot");
-  } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
-    console.log("Falling back to local JSON database.");
+    const dbName = config.database.dbName || "Queen";
+    activeDatabase = mongoClient.db(dbName);
+    return activeDatabase;
+  } catch {
     localMode = true;
     loadLocalDatabase();
+    activeDatabase = localDatabase;
     return localDatabase;
   }
 }
 
-function isLocalDatabase() {
+export function isLocalDatabase(): boolean {
   return localMode;
 }
 
-export { connectToDatabase, isLocalDatabase };
-export default connectToDatabase;
+export function getDatabase(): any {
+  return activeDatabase || localDatabase;
+}
