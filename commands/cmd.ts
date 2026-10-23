@@ -1,12 +1,8 @@
 import axios from "axios";
 import fs from "fs";
 import path from "path";
-import { exec } from "child_process";
-import { promisify } from "util";
-import { commands, commandAliases, CommandModule } from "../bot.js";
+import { commands, commandAliases, CommandModule, isOwner } from "../bot.js";
 import config from "../config.js";
-
-const execAsync = promisify(exec);
 
 export const config_data = {
   name: "cmd",
@@ -19,13 +15,15 @@ export const config_data = {
     en: "Manage, reload, and install command modules dynamically"
   },
   longDescription: {
-    en: "Dynamically load, reload, unload, and install command scripts from URLs or raw code without restarting the bot"
+    en: "Dynamically load, reload, unload, and install command scripts from URLs or raw code with overwrite confirmation"
   },
   category: "Owner",
   guide: {
     en: "/cmd load <file_name>\n/cmd loadall\n/cmd unload <command_name>\n/cmd install <url> <file_name.ts>\n/cmd install <file_name.ts> <code>"
   }
 };
+
+const pendingInstalls = new Map<number | string, { fileName: string; codeContent: string; authorId: number }>();
 
 function resolveFilePath(name: string): string | null {
   const dir = path.resolve(process.cwd(), "commands");
@@ -97,9 +95,9 @@ function getRawUrl(url: string): string {
 }
 
 export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Promise<void> {
-  const isOwner = config.roles.owners.includes(ctx.from?.id);
-  if (!isOwner) {
-    await ctx.reply("🚫 Only bot owners are authorized to manage command scripts.");
+  const userId = ctx.from?.id;
+  if (!isOwner(userId)) {
+    await ctx.reply(`🚫 Only bot owners are authorized to manage command scripts.\nYour ID: \`${userId}\``, { parse_mode: "Markdown" });
     return;
   }
 
@@ -181,18 +179,32 @@ export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Prom
 
     let urlOrCode = "";
     let fileName = "";
+    let forceOverwrite = false;
 
-    if (/^https?:\/\//i.test(args[1])) {
-      urlOrCode = args[1];
-      fileName = args[2];
-    } else if (/^https?:\/\//i.test(args[2])) {
-      fileName = args[1];
-      urlOrCode = args[2];
-    } else {
-      fileName = args[1];
-      const fullText = ctx.message?.text || "";
-      const idx = fullText.indexOf(fileName);
-      urlOrCode = idx !== -1 ? fullText.slice(idx + fileName.length).trim() : args.slice(2).join(" ");
+    for (let i = 1; i < args.length; i++) {
+      if (args[i].toLowerCase() === "force" || args[i].toLowerCase() === "-f") {
+        forceOverwrite = true;
+      } else if (!fileName && (args[i].endsWith(".ts") || args[i].endsWith(".js"))) {
+        fileName = args[i];
+      } else if (!urlOrCode && /^https?:\/\//i.test(args[i])) {
+        urlOrCode = args[i];
+      }
+    }
+
+    if (!fileName) {
+      if (args[1].endsWith(".ts") || args[1].endsWith(".js")) fileName = args[1];
+      else if (args[2].endsWith(".ts") || args[2].endsWith(".js")) fileName = args[2];
+      else fileName = `${args[1]}.ts`;
+    }
+
+    if (!urlOrCode) {
+      if (/^https?:\/\//i.test(args[1])) urlOrCode = args[1];
+      else if (/^https?:\/\//i.test(args[2])) urlOrCode = args[2];
+      else {
+        const fullText = ctx.message?.text || "";
+        const idx = fullText.indexOf(fileName);
+        urlOrCode = idx !== -1 ? fullText.slice(idx + fileName.length).trim() : args.slice(2).join(" ");
+      }
     }
 
     if (!fileName.endsWith(".ts") && !fileName.endsWith(".js")) {
@@ -222,9 +234,27 @@ export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Prom
     }
 
     const savePath = path.resolve(process.cwd(), "commands", fileName);
-    fs.writeFileSync(savePath, codeContent, "utf8");
+    const fileExists = fs.existsSync(savePath);
 
+    if (fileExists && !forceOverwrite) {
+      const confirmMsg = await ctx.reply(
+        `⚠️ *Command file \`${fileName}\` already exists!*\n\n` +
+        `Are you sure you want to overwrite it?\n` +
+        `👉 *React with 👍 to this message to confirm overwriting*, or append \`force\` to overwrite directly.`,
+        { parse_mode: "Markdown" }
+      );
+
+      pendingInstalls.set(confirmMsg.message_id, {
+        fileName,
+        codeContent,
+        authorId: userId
+      });
+      return;
+    }
+
+    fs.writeFileSync(savePath, codeContent, "utf8");
     const loadRes = await loadSingleCommand(savePath);
+
     if (loadRes.success) {
       await ctx.reply(`✅ Command script \`${fileName}\` installed and loaded successfully as \`${loadRes.name}\`!`, { parse_mode: "Markdown" });
     } else {
@@ -236,7 +266,38 @@ export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Prom
   await ctx.reply("⚠️ Unknown command manager action.\nUsage: `/cmd [load|loadall|unload|install]`", { parse_mode: "Markdown" });
 }
 
+export async function onReaction({ ctx }: { ctx: any }): Promise<void> {
+  const reactionUpdate = ctx.messageReaction;
+  if (!reactionUpdate) return;
+
+  const msgId = reactionUpdate.message_id;
+  const pending = pendingInstalls.get(msgId);
+  if (!pending) return;
+
+  const reactorId = reactionUpdate.user?.id;
+  if (reactorId !== pending.authorId && !isOwner(reactorId)) return;
+
+  const newReactions = reactionUpdate.new_reaction || [];
+  const hasThumb = newReactions.some((r: any) => r.type === "emoji" && typeof r.emoji === "string" && r.emoji.startsWith("👍"));
+  if (!hasThumb) return;
+
+  pendingInstalls.delete(msgId);
+
+  const savePath = path.resolve(process.cwd(), "commands", pending.fileName);
+  fs.writeFileSync(savePath, pending.codeContent, "utf8");
+
+  const loadRes = await loadSingleCommand(savePath);
+  const chatId = reactionUpdate.chat.id;
+
+  if (loadRes.success) {
+    await ctx.api.sendMessage(chatId, `✅ Overwrite confirmed! Script \`${pending.fileName}\` installed and loaded successfully as \`${loadRes.name}\`!`, { parse_mode: "Markdown" });
+  } else {
+    await ctx.api.sendMessage(chatId, `⚠️ Overwrite saved as \`${pending.fileName}\`, but loading error occurred:\n\`\`\`\n${loadRes.error}\n\`\`\``, { parse_mode: "Markdown" });
+  }
+}
+
 export default {
   config: config_data,
-  onStart
+  onStart,
+  onReaction
 };
