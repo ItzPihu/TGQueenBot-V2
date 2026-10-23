@@ -11,7 +11,7 @@
     "Added remote update verification and one-click in-bot updater command",
     "Role-based permission enforcement (0: Public, 1: Group Admin, 2: Bot Owner)"
   ],
-  "repository": "https://github.com/ItzPriyanshi/TGQueenBot-V2",
+  "repository": "https://github.com/ItzPihu/TGQueenBot-V2",
   "minBunVersion": "1.0.0",
-  "minNodeVersion": "18.0.0"
+  "minNodeVersion": "20.0.0"
 }
