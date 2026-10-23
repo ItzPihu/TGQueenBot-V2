@@ -1,6 +1,6 @@
 export const config = {
   bot: {
-    name: "TGQueenBot-Beta",
+    name: "TGQueenBot-V2",
     author: "Priyanshi Kaur",
     version: "2.0.0",
     prefix: "/",
