@@ -106,20 +106,30 @@ function startWebServer(): void {
   }
 }
 
+export function isOwner(userId: number | string | undefined): boolean {
+  if (!userId) return false;
+  return config.roles.owners.some((id: any) => String(id).trim() === String(userId).trim());
+}
+
+export function isBotAdmin(userId: number | string | undefined): boolean {
+  if (!userId) return false;
+  return isOwner(userId) || config.roles.admins.some((id: any) => String(id).trim() === String(userId).trim());
+}
+
 async function checkUserRole(ctx: Context, requiredRole: number): Promise<boolean> {
   if (requiredRole === 0) return true;
   const userId = ctx.from?.id;
   if (!userId) return false;
 
-  const isOwner = config.roles.owners.includes(userId);
-  const isBotAdmin = isOwner || config.roles.admins.includes(userId);
+  const owner = isOwner(userId);
+  const admin = isBotAdmin(userId);
 
   if (requiredRole === 2) {
-    return isBotAdmin;
+    return admin;
   }
 
   if (requiredRole === 1) {
-    if (isBotAdmin) return true;
+    if (admin) return true;
     if (ctx.chat?.type === "private") return true;
     try {
       const member = await ctx.getChatMember(userId);
@@ -260,7 +270,7 @@ export async function bootstrap(): Promise<void> {
   bot.on("message", async (ctx) => {
     if (config.features.whitelist?.enabled) {
       const senderId = ctx.from?.id;
-      if (senderId && !config.features.whitelist.allowedUsers.includes(senderId) && !config.roles.owners.includes(senderId)) {
+      if (senderId && !config.features.whitelist.allowedUsers.some((u: any) => String(u) === String(senderId)) && !isOwner(senderId)) {
         return;
       }
     }
