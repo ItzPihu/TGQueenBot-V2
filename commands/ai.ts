@@ -21,7 +21,7 @@ export const config_data = {
   }
 };
 
-const apiKey = "AQ.Ab8RN6LZuvmdw8abZEEfO8vlP5vCNAqcOXwLMV8KvFTU-1Ibpg";
+const apiKey = "YOUR_GEMINI_API_KEY";
 const genAI = new GoogleGenAI({ apiKey });
 
 async function processQuery(ctx: any, query: string, db: any): Promise<void> {
