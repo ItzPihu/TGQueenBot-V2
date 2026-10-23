@@ -4,7 +4,7 @@ import config from "../config.js";
 
 export const config_data = {
   name: "restart",
-  aliases: ["reboot", "reload"],
+  aliases: ["reboot"],
   version: "2.0.0",
   author: "Priyanshi Kaur",
   countDown: 5,
