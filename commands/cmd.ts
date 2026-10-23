@@ -7,7 +7,7 @@ import config from "../config.js";
 export const config_data = {
   name: "cmd",
   aliases: [],
-  version: "2.0.0",
+  version: "2.1.0",
   author: "Priyanshi Kaur",
   countDown: 3,
   role: 2,
