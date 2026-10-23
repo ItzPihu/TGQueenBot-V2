@@ -7,8 +7,8 @@ export const config = {
     token: "8426423152:AAHJL3FyfBV2dsmfjQhiEn-Op8yNJcNvKCY"
   },
   roles: {
-    owners: [8789877223],
-    admins: [8789877223]
+    owners: ["8789877223"],
+    admins: ["8789877223"]
   },
   database: {
     type: "mongodb",
@@ -23,7 +23,7 @@ export const config = {
   },
   updater: {
     enabled: true,
-    updateUrl: "https://raw.githubusercontent.com/ItzPriyanshi/TGQueenBot-V2/main/update.json",
+    updateUrl: "https://raw.githubusercontent.com/ItzPihu/TGQueenBot-V2/main/update.json",
     checkInterval: 3600000,
     autoNotifyAdmins: true
   },
