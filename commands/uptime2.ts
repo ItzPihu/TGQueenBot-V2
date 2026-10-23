@@ -5,7 +5,7 @@ import process from "process";
 
 export const config_data = {
   name: "uptime2",
-  aliases: ["up2", "status2", "telemetry"],
+  aliases: ["up2"],
   version: "2.0.0",
   author: "Priyanshi Kaur",
   countDown: 5,
