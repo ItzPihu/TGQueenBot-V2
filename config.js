@@ -4,15 +4,15 @@ export const config = {
     author: "Priyanshi Kaur",
     version: "2.0.0",
     prefix: "/",
-    token: "8426423152:AAHJL3FyfBV2dsmfjQhiEn-Op8yNJcNvKCY"
+    token: "YOUR_BOT_FATHER_TOKEN"
   },
   roles: {
-    owners: ["8789877223"],
-    admins: ["8789877223"]
+    owners: ["BOT_ADMIN_UID"],
+    admins: ["BOT_OWNER_UID"]
   },
   database: {
     type: "mongodb",
-    uri: "mongodb+srv://ajay123455:ajay123455@queen.d9zk5go.mongodb.net/?appName=Queen",
+    uri: "YOUR_MONGODB_URL",
     dbName: "Queen"
   },
   server: {
