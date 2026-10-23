@@ -230,6 +230,18 @@ export async function bootstrap(): Promise<void> {
     }
   });
 
+  bot.on("message_reaction", async (ctx) => {
+    for (const cmd of commands.values()) {
+      if (cmd.onReaction) {
+        try {
+          await cmd.onReaction({ bot, ctx, db });
+        } catch (err: any) {
+          console.error(chalk.red(`[Reaction Error] ${cmd.config?.name || "command"}: ${err.message}`));
+        }
+      }
+    }
+  });
+
   bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
     const [name, ...args] = data.split(":");
@@ -341,7 +353,19 @@ export async function bootstrap(): Promise<void> {
     console.error(chalk.red(`[grammY Error]: ${err.message}`));
   });
 
-  bot.start();
+  bot.start({
+    allowed_updates: [
+      "message",
+      "edited_message",
+      "channel_post",
+      "edited_channel_post",
+      "message_reaction",
+      "message_reaction_count",
+      "inline_query",
+      "chosen_inline_result",
+      "callback_query"
+    ]
+  });
   console.log(chalk.green.bold(`🚀 ${config.bot.name} successfully launched on grammY & Bun/Node!`));
 }
 
