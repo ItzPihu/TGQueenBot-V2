@@ -6,7 +6,7 @@ import { commands } from "../bot.js";
 
 export const config_data = {
   name: "uptime",
-  aliases: ["up", "status", "botinfo", "ping"],
+  aliases: ["up"],
   version: "2.0.0",
   author: "Priyanshi Kaur",
   countDown: 3,
