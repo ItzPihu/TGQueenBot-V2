@@ -13,7 +13,7 @@ export const config_data = {
     en: "Search and play YouTube audio or video inline"
   },
   longDescription: {
-    en: "Downloads and sends playable music or video clips from YouTube for Telegram's built-in media player"
+    en: "Search and listen any music from YouTube & Youtube Music"
   },
   category: "Media",
   guide: {
