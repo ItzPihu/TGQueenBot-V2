@@ -3,17 +3,17 @@ import yts from "yt-search";
 import { InputFile } from "grammy";
 
 export const config_data = {
-  name: "sing",
-  aliases: ["play", "music", "yt", "song", "video"],
-  version: "2.1.0",
+  name: "play",
+  aliases: ["sing", "music", "yt", "song"],
+  version: "2.2.0",
   author: "Priyanshi Kaur",
   countDown: 5,
   role: 0,
   shortDescription: {
-    en: "Search and play YouTube audio or video"
+    en: "Search and play YouTube audio or video inline"
   },
   longDescription: {
-    en: "Downloads and streams music or video clips from YouTube in various qualities"
+    en: "Downloads and sends playable music or video clips from YouTube for Telegram's built-in media player"
   },
   category: "Media",
   guide: {
@@ -88,8 +88,9 @@ async function resolveVideo(query: string): Promise<any> {
       videoID: directVideoID,
       url: `https://www.youtube.com/watch?v=${directVideoID}`,
       shortUrl: `https://youtu.be/${directVideoID}`,
-      title: "YouTube Video",
-      author: "YouTube"
+      title: "YouTube Media",
+      author: "YouTube",
+      duration: undefined
     };
   }
 
@@ -108,8 +109,9 @@ async function resolveVideo(query: string): Promise<any> {
     videoID: video.videoId,
     url: video.url,
     shortUrl: `https://youtu.be/${video.videoId}`,
-    title: video.title || "YouTube Video",
-    author: video.author?.name || "YouTube"
+    title: video.title || "YouTube Media",
+    author: video.author?.name || "YouTube",
+    duration: typeof video.seconds === "number" && video.seconds > 0 ? video.seconds : undefined
   };
 }
 
@@ -131,7 +133,7 @@ async function fetchYouTubeMedia(videoUrl: string, mediaType: string, requestedQ
         title: data.title || "YouTube Audio",
         author: data.channel || "Unknown Channel",
         mediaURL: link,
-        extension: "m4a",
+        extension: "mp3",
         quality: "Audio",
         size: data.size || "Standard"
       };
@@ -172,14 +174,17 @@ async function fetchYouTubeMedia(videoUrl: string, mediaType: string, requestedQ
   }
 }
 
-async function getMediaStream(url: string): Promise<any> {
-  const response = await axios({
-    url,
-    method: "GET",
-    responseType: "stream",
-    timeout: 60000
+async function downloadMediaBuffer(url: string): Promise<Buffer> {
+  const response = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: 90000,
+    maxContentLength: 50 * 1024 * 1024,
+    maxBodyLength: 50 * 1024 * 1024,
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
   });
-  return response.data;
+  return Buffer.from(response.data);
 }
 
 export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Promise<void> {
@@ -222,28 +227,33 @@ export async function onStart({ ctx, args }: { ctx: any; args: string[] }): Prom
     );
 
     const mediaInfo = await fetchYouTubeMedia(video.url, mediaType, selectedQuality);
-    const fileName = `${sanitizeFileName(mediaInfo.title)}.${mediaInfo.extension}`;
+    const finalTitle = mediaInfo.title !== "YouTube Audio" && mediaInfo.title !== "YouTube Video" ? mediaInfo.title : video.title;
+    const finalAuthor = mediaInfo.author !== "Unknown Channel" ? mediaInfo.author : video.author;
+    const fileName = `${sanitizeFileName(finalTitle)}.${mediaInfo.extension}`;
+    const caption = `${mediaType === "audio" ? "🎶" : "🎬"} *${finalTitle}*\n📺 *Channel:* ${finalAuthor}\n📦 *Quality:* \`${mediaInfo.quality}\` | Size: \`${mediaInfo.size}\`\n🔗 [YouTube Link](${video.shortUrl})`;
 
     await ctx.api.editMessageText(
       ctx.chat.id,
       processingMsg.message_id,
-      `📥 Downloading ${mediaType}...\n📀 *${mediaInfo.title}*\n📦 Quality: \`${mediaInfo.quality}\` | Size: \`${mediaInfo.size}\``,
+      `📥 Downloading ${mediaType}...\n📀 *${finalTitle}*\n📦 Quality: \`${mediaInfo.quality}\` | Size: \`${mediaInfo.size}\``,
       { parse_mode: "Markdown" }
     );
 
-    const stream = await getMediaStream(mediaInfo.mediaURL);
-    const caption = `${mediaType === "audio" ? "🎶" : "🎬"} *${mediaInfo.title}*\n📺 *Channel:* ${mediaInfo.author}\n📦 *Quality:* \`${mediaInfo.quality}\` | Size: \`${mediaInfo.size}\`\n🔗 [YouTube Link](${video.shortUrl})`;
+    const mediaBuffer = await downloadMediaBuffer(mediaInfo.mediaURL);
 
     if (mediaType === "audio") {
-      await ctx.replyWithAudio(new InputFile(stream, fileName), {
+      await ctx.replyWithAudio(new InputFile(mediaBuffer, fileName), {
         caption,
-        title: mediaInfo.title,
-        performer: mediaInfo.author,
+        title: finalTitle,
+        performer: finalAuthor,
+        duration: video.duration,
         parse_mode: "Markdown"
       });
     } else {
-      await ctx.replyWithVideo(new InputFile(stream, fileName), {
+      await ctx.replyWithVideo(new InputFile(mediaBuffer, fileName), {
         caption,
+        duration: video.duration,
+        supports_streaming: true,
         parse_mode: "Markdown"
       });
     }
